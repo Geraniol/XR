@@ -58,36 +58,42 @@
             // 纹理加载器
             const loader = new THREE.TextureLoader();
 
-            const leftTex = loader.load( "./left.jpg" );
-            const rightTex = loader.load( "./right.jpg" );
+            let leftTex, rightTex;
+            let aspect = 1; // default aspect ratio
 
-            // 獲取圖片比例
-            const aspect = leftTex.image.width / leftTex.image.height;
-            leftTex.minFilter = THREE.LinearFilter;
-            rightTex.minFilter = THREE.LinearFilter;
+            leftTex = loader.load("./left.jpg", function (texture) {
+                if (texture.image) {
+                    aspect = texture.image.width / texture.image.height;
+                    leftTex.minFilter = THREE.LinearFilter;
 
-            // 左右眼平面
-            const leftGeometry = new THREE.PlaneGeometry( aspect, 1);
-            const rightGeometry = new THREE.PlaneGeometry( aspect, 1 );
-            const leftMat = new THREE.MeshBasicMaterial( { map: leftTex } );
-            const rightMat = new THREE.MeshBasicMaterial( { map: rightTex } );
+                    rightTex = loader.load("./right.jpg", function (rightTexture) {
+                        rightTex.minFilter = THREE.LinearFilter;
 
-            // 创建左右眼 mesh
-            leftMesh = new THREE.Mesh( leftGeometry, leftMat );
-            rightMesh = new THREE.Mesh( rightGeometry, rightMat );
+                        // 左右眼平面
+                        const leftGeometry = new THREE.PlaneGeometry(aspect, 1);
+                        const rightGeometry = new THREE.PlaneGeometry(aspect, 1);
+                        const leftMat = new THREE.MeshBasicMaterial({ map: leftTex });
+                        const rightMat = new THREE.MeshBasicMaterial({ map: rightTex });
 
-            // 放在相机前方
-            leftMesh.position.z = -0.8;
-            leftMesh.position.y = 1.2;
-            rightMesh.position.z = -0.8;
-            rightMesh.position.y = 1.2;
+                        // 创建左右眼 mesh
+                        leftMesh = new THREE.Mesh(leftGeometry, leftMat);
+                        rightMesh = new THREE.Mesh(rightGeometry, rightMat);
 
-            // 设置 Layer：0 = 左眼，1 = 右眼
-            leftMesh.layers.set( 1 );   // 专给左眼
-            rightMesh.layers.set( 2 );  // 专给右眼
+                        // 放在相机前方
+                        leftMesh.position.z = -0.8;
+                        leftMesh.position.y = 1.2;
+                        rightMesh.position.z = -0.8;
+                        rightMesh.position.y = 1.2;
 
-            scene.add( leftMesh );
-            scene.add( rightMesh );
+                        // 设置 Layer：0 = 左眼，1 = 右眼
+                        leftMesh.layers.set(1);   // 专给左眼
+                        rightMesh.layers.set(2);  // 专给右眼
+
+                        scene.add(leftMesh);
+                        scene.add(rightMesh);
+                    });
+                }
+            });
 
             // 监听滑块变化
             document.getElementById( "ipd" ).addEventListener( "input", ( e ) =>
