@@ -32,8 +32,8 @@
     </div>
 
     <script type="module">
-        import * as THREE from '/src/Three.js';
-        import { VRButton } from '/src/webxr/VRButton.js';
+        import * as THREE from './src/Three.js';
+        import { VRButton } from './src/webxr/VRButton.js';
 
         let scene, camera, renderer;
         let leftMesh, rightMesh;
@@ -58,8 +58,8 @@
             // 纹理加载器
             const loader = new THREE.TextureLoader();
 
-            const leftTex = loader.load( "left.jpg" );
-            const rightTex = loader.load( "right.jpg" );
+            const leftTex = loader.load( "./left.jpg" );
+            const rightTex = loader.load( "./right.jpg" );
 
             // 左右眼平面
             // const geometry = new THREE.PlaneGeometry( 1.6, 0.9 ); // 16:9 比例
