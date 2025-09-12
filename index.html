@@ -97,32 +97,6 @@
 
             window.addEventListener( "resize", onWindowResize );
 
-            // 拖動控制位置
-            let isDragging = false;
-            let previousMousePosition = { x: 0, y: 0 };
-            renderer.domElement.addEventListener( 'mousedown', ( e ) =>
-            {
-                isDragging = true;
-                previousMousePosition = { x: e.clientX, y: e.clientY };
-            } );
-            renderer.domElement.addEventListener( 'mouseup', () =>
-            {
-                isDragging = false;
-            } );
-            renderer.domElement.addEventListener( 'mousemove', ( e ) =>
-            {
-                if ( isDragging )
-                {
-                    const deltaMove = { x: e.clientX - previousMousePosition.x, y: e.clientY - previousMousePosition.y };
-                    const rotationSpeed = 0.005;
-
-                    scene.rotation.y += deltaMove.x * rotationSpeed;
-                    scene.rotation.x += deltaMove.y * rotationSpeed;
-
-                    previousMousePosition = { x: e.clientX, y: e.clientY };
-                }
-            } );
-
             // 滾輪、手柄上下控制距離
             renderer.domElement.addEventListener( 'wheel', ( e ) =>
             {
