@@ -68,12 +68,17 @@
             const leftMat = new THREE.MeshBasicMaterial( { map: leftTex } );
             const rightMat = new THREE.MeshBasicMaterial( { map: rightTex } );
 
+            // 创建左右眼 mesh
             leftMesh = new THREE.Mesh( leftGeometry, leftMat );
             rightMesh = new THREE.Mesh( rightGeometry, rightMat );
 
             // 放在相机前方
             leftMesh.position.z = -2;
             rightMesh.position.z = -2;
+
+            // 设置 Layer：0 = 左眼，1 = 右眼
+            leftMesh.layers.set( 1 );   // 专给左眼
+            rightMesh.layers.set( 2 );  // 专给右眼
 
             scene.add( leftMesh );
             scene.add( rightMesh );
@@ -147,14 +152,14 @@
                     {
                         if ( view.eye === "left" )
                         {
-                            leftMesh.visible = true;
-                            rightMesh.visible = false;
-                            leftMesh.position.x = -ipd / 2;  // 左眼偏移
+                            camera.layers.enable( 1 ); // 左眼只看 Layer 1
+                            camera.layers.disable( 2 );
+                            leftMesh.position.x = -ipd / 2;
                         } else if ( view.eye === "right" )
                         {
-                            leftMesh.visible = false;
-                            rightMesh.visible = true;
-                            rightMesh.position.x = ipd / 2;  // 右眼偏移
+                            camera.layers.enable( 2 ); // 右眼只看 Layer 2
+                            camera.layers.disable( 1 );
+                            rightMesh.position.x = ipd / 2;
                         }
                     }
                 }
