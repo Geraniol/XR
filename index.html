@@ -61,9 +61,14 @@
             const leftTex = loader.load( "./left.jpg" );
             const rightTex = loader.load( "./right.jpg" );
 
+            // 獲取圖片比例
+            const aspect = leftTex.image.width / leftTex.image.height;
+            leftTex.minFilter = THREE.LinearFilter;
+            rightTex.minFilter = THREE.LinearFilter;
+
             // 左右眼平面
-            const leftGeometry = new THREE.PlaneGeometry( 1, 1 );
-            const rightGeometry = new THREE.PlaneGeometry( 1, 1 );
+            const leftGeometry = new THREE.PlaneGeometry( aspect, 1);
+            const rightGeometry = new THREE.PlaneGeometry( aspect, 1 );
             const leftMat = new THREE.MeshBasicMaterial( { map: leftTex } );
             const rightMat = new THREE.MeshBasicMaterial( { map: rightTex } );
 
@@ -72,10 +77,10 @@
             rightMesh = new THREE.Mesh( rightGeometry, rightMat );
 
             // 放在相机前方
-            leftMesh.position.z = -1;
-            leftMesh.position.y = 1; // 适当抬高一点
-            rightMesh.position.z = -1;
-            rightMesh.position.y = 1;
+            leftMesh.position.z = -0.8;
+            leftMesh.position.y = 1.2;
+            rightMesh.position.z = -0.8;
+            rightMesh.position.y = 1.2;
 
             // 设置 Layer：0 = 左眼，1 = 右眼
             leftMesh.layers.set( 1 );   // 专给左眼
