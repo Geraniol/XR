@@ -63,12 +63,13 @@
 
             // 左右眼平面
             // const geometry = new THREE.PlaneGeometry( 1.6, 0.9 ); // 16:9 比例
-            const geometry = new THREE.PlaneGeometry( 1, 1 );
+            const leftGeometry = new THREE.PlaneGeometry( 1, 1 );
+            const rightGeometry = new THREE.PlaneGeometry( 1, 1 );
             const leftMat = new THREE.MeshBasicMaterial( { map: leftTex } );
             const rightMat = new THREE.MeshBasicMaterial( { map: rightTex } );
 
-            leftMesh = new THREE.Mesh( geometry, leftMat );
-            rightMesh = new THREE.Mesh( geometry, rightMat );
+            leftMesh = new THREE.Mesh( leftGeometry, leftMat );
+            rightMesh = new THREE.Mesh( rightGeometry, rightMat );
 
             // 放在相机前方
             leftMesh.position.z = -2;
