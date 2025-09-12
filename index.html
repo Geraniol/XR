@@ -1,192 +1,175 @@
 <!DOCTYPE html>
 <html lang="zh">
+
 <head>
-  <meta charset="UTF-8">
-  <title>Stereo Image Viewer (Quest3)</title>
-  <style>
-    body { margin: 0; overflow: hidden; background: black; }
-    #ui {
-      position: absolute;
-      bottom: 20px;
-      left: 50%;
-      transform: translateX(-50%);
-      background: rgba(0,0,0,0.6);
-      padding: 10px;
-      border-radius: 8px;
-      color: white;
-      font-family: sans-serif;
-    }
-  </style>
+    <meta charset="UTF-8">
+    <title>Stereo Image Viewer</title>
+    <style>
+        body {
+            margin: 0;
+            overflow: hidden;
+            background: black;
+        }
+
+        #ui {
+            position: absolute;
+            bottom: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: rgba(0, 0, 0, 0.6);
+            padding: 10px;
+            border-radius: 8px;
+            color: white;
+            font-family: sans-serif;
+        }
+    </style>
 </head>
+
 <body>
-  <div id="ui">
-    瞳距调整：
-    <input id="ipd" type="range" min="0.0" max="0.2" step="0.001" value="0.06">
-  </div>
+    <div id="ui">
+        瞳距调整：
+        <input id="ipd" type="range" min="0.0" max="0.2" step="0.001" value="0.06">
+    </div>
 
-  <script type="module">
-    import * as THREE from './src/Three.js';
-    import { VRButton } from './src/webxr/VRButton.js';
-    import { XRControllerModelFactory } from './src/webxr/XRControllerModelFactory.js';
+    <script type="module">
+        import * as THREE from './src/Three.js';
+        import { VRButton } from './src/webxr/VRButton.js';
 
-    let scene, camera, renderer;
-    let leftMesh, rightMesh;
-    let ipd = 0.06;
+        let scene, camera, renderer;
+        let leftMesh, rightMesh;
+        let ipd = 0.06; // 初始瞳距（单位：米）
 
-    // 控制器
-    let controller1, controllerGrip1, controller2, controllerGrip2;
-    let raycaster, tempMatrix = new THREE.Matrix4();
+        init();
+        animate();
 
-    // 抓取状态
-    let grabbed = new Set();   // 哪些控制器正在抓取
-    let grabbedObject = null;  // 被抓取的对象（图片）
-    let initialDistance = 0;
-    let initialScale = 1;
+        function init ()
+        {
+            // 场景和相机
+            scene = new THREE.Scene();
+            camera = new THREE.PerspectiveCamera( 70, window.innerWidth / window.innerHeight, 0.1, 100 );
 
-    init();
-    animate();
+            // 渲染器
+            renderer = new THREE.WebGLRenderer( { antialias: true } );
+            renderer.setSize( window.innerWidth, window.innerHeight );
+            renderer.xr.enabled = true;
+            document.body.appendChild( VRButton.createButton( renderer ) );
+            document.body.appendChild( renderer.domElement );
 
-    function init() {
-      scene = new THREE.Scene();
-      camera = new THREE.PerspectiveCamera(70, window.innerWidth / window.innerHeight, 0.1, 100);
+            // 纹理加载器
+            const loader = new THREE.TextureLoader();
 
-      renderer = new THREE.WebGLRenderer({ antialias: true });
-      renderer.setSize(window.innerWidth, window.innerHeight);
-      renderer.xr.enabled = true;
-      document.body.appendChild(VRButton.createButton(renderer));
-      document.body.appendChild(renderer.domElement);
+            const leftTex = loader.load( "./left.jpg" );
+            const rightTex = loader.load( "./right.jpg" );
 
-      const loader = new THREE.TextureLoader();
-      const leftTex = loader.load("./left.jpg");
-      const rightTex = loader.load("./right.jpg");
+            // 左右眼平面
+            // const geometry = new THREE.PlaneGeometry( 1.6, 0.9 ); // 16:9 比例
+            const leftGeometry = new THREE.PlaneGeometry( 1, 1 );
+            const rightGeometry = new THREE.PlaneGeometry( 1, 1 );
+            const leftMat = new THREE.MeshBasicMaterial( { map: leftTex } );
+            const rightMat = new THREE.MeshBasicMaterial( { map: rightTex } );
 
-      const geom = new THREE.PlaneGeometry(1.6, 0.9);
-      const leftMat = new THREE.MeshBasicMaterial({ map: leftTex, side: THREE.DoubleSide });
-      const rightMat = new THREE.MeshBasicMaterial({ map: rightTex, side: THREE.DoubleSide });
+            // 创建左右眼 mesh
+            leftMesh = new THREE.Mesh( leftGeometry, leftMat );
+            rightMesh = new THREE.Mesh( rightGeometry, rightMat );
 
-      leftMesh = new THREE.Mesh(geom, leftMat);
-      rightMesh = new THREE.Mesh(geom, rightMat);
-      leftMesh.position.z = -2;
-      rightMesh.position.z = -2;
+            // 放在相机前方
+            leftMesh.position.z = -2;
+            leftMesh.position.y = 1.5; // 适当抬高一点
+            rightMesh.position.z = -2;
+            rightMesh.position.y = 1.5;
 
-      // 设置 layer
-      leftMesh.layers.set(1);
-      rightMesh.layers.set(2);
+            // 设置 Layer：0 = 左眼，1 = 右眼
+            leftMesh.layers.set( 1 );   // 专给左眼
+            rightMesh.layers.set( 2 );  // 专给右眼
 
-      scene.add(leftMesh);
-      scene.add(rightMesh);
+            scene.add( leftMesh );
+            scene.add( rightMesh );
 
-      // --- 控制器 ---
-      raycaster = new THREE.Raycaster();
-      const controllerModelFactory = new XRControllerModelFactory();
+            // 监听滑块变化
+            document.getElementById( "ipd" ).addEventListener( "input", ( e ) =>
+            {
+                ipd = parseFloat( e.target.value );
+            } );
 
-      controller1 = renderer.xr.getController(0);
-      controller2 = renderer.xr.getController(1);
-      scene.add(controller1);
-      scene.add(controller2);
+            window.addEventListener( "resize", onWindowResize );
 
-      controllerGrip1 = renderer.xr.getControllerGrip(0);
-      controllerGrip1.add(controllerModelFactory.createControllerModel(controllerGrip1));
-      scene.add(controllerGrip1);
+            // 拖動控制位置
+            let isDragging = false;
+            let previousMousePosition = { x: 0, y: 0 };
+            renderer.domElement.addEventListener( 'mousedown', ( e ) =>
+            {
+                isDragging = true;
+                previousMousePosition = { x: e.clientX, y: e.clientY };
+            } );
+            renderer.domElement.addEventListener( 'mouseup', () =>
+            {
+                isDragging = false;
+            } );
+            renderer.domElement.addEventListener( 'mousemove', ( e ) =>
+            {
+                if ( isDragging )
+                {
+                    const deltaMove = { x: e.clientX - previousMousePosition.x, y: e.clientY - previousMousePosition.y };
+                    const rotationSpeed = 0.005;
 
-      controllerGrip2 = renderer.xr.getControllerGrip(1);
-      controllerGrip2.add(controllerModelFactory.createControllerModel(controllerGrip2));
-      scene.add(controllerGrip2);
+                    scene.rotation.y += deltaMove.x * rotationSpeed;
+                    scene.rotation.x += deltaMove.y * rotationSpeed;
 
-      controller1.addEventListener('selectstart', (e) => onSelectStart(e, controller1));
-      controller1.addEventListener('selectend',   (e) => onSelectEnd(e, controller1));
-      controller2.addEventListener('selectstart', (e) => onSelectStart(e, controller2));
-      controller2.addEventListener('selectend',   (e) => onSelectEnd(e, controller2));
+                    previousMousePosition = { x: e.clientX, y: e.clientY };
+                }
+            } );
 
-      document.getElementById("ipd").addEventListener("input", (e) => {
-        ipd = parseFloat(e.target.value);
-      });
-
-      window.addEventListener('resize', onWindowResize);
-    }
-
-    function intersectObject(controller) {
-      tempMatrix.identity().extractRotation(controller.matrixWorld);
-      raycaster.ray.origin.setFromMatrixPosition(controller.matrixWorld);
-      raycaster.ray.direction.set(0, 0, -1).applyMatrix4(tempMatrix);
-
-      return raycaster.intersectObjects([leftMesh, rightMesh]);
-    }
-
-    function onSelectStart(event, controller) {
-      const intersects = intersectObject(controller);
-      if (intersects.length > 0) {
-        grabbed.add(controller);
-        grabbedObject = intersects[0].object;
-
-        if (grabbed.size === 2) {
-          // 双手开始抓取，记录初始状态
-          const p1 = new THREE.Vector3().setFromMatrixPosition(controller1.matrixWorld);
-          const p2 = new THREE.Vector3().setFromMatrixPosition(controller2.matrixWorld);
-          initialDistance = p1.distanceTo(p2);
-          initialScale = grabbedObject.scale.x;
+            // 滾輪、手柄上下控制距離
+            renderer.domElement.addEventListener( 'wheel', ( e ) =>
+            {
+                e.preventDefault();
+                const delta = e.deltaY * 0.01;
+                leftMesh.position.z += delta;
+                rightMesh.position.z += delta;
+            } );
         }
-      }
-    }
 
-    function onSelectEnd(event, controller) {
-      grabbed.delete(controller);
-      if (grabbed.size === 0) {
-        grabbedObject = null;
-      }
-    }
+        function onWindowResize ()
+        {
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize( window.innerWidth, window.innerHeight );
+        }
 
-    function onWindowResize() {
-      camera.aspect = window.innerWidth / window.innerHeight;
-      camera.updateProjectionMatrix();
-      renderer.setSize(window.innerWidth, window.innerHeight);
-    }
+        function animate ()
+        {
+            renderer.setAnimationLoop( render );
+        }
 
-    function animate() {
-      renderer.setAnimationLoop(render);
-    }
+        function render ( time, frame )
+        {
+            if ( frame )
+            {
+                const session = renderer.xr.getSession();
+                const pose = frame.getViewerPose( renderer.xr.getReferenceSpace() );
 
-    function render(time, frame) {
-      if (frame) {
-        const pose = frame.getViewerPose(renderer.xr.getReferenceSpace());
-        if (pose) {
-          for (const view of pose.views) {
-            if (view.eye === "left") {
-              camera.layers.enable(1);
-              camera.layers.disable(2);
-              leftMesh.position.x = -ipd / 2;
-            } else if (view.eye === "right") {
-              camera.layers.enable(2);
-              camera.layers.disable(1);
-              rightMesh.position.x = ipd / 2;
+                if ( pose )
+                {
+                    for ( const view of pose.views )
+                    {
+                        if ( view.eye === "left" )
+                        {
+                            camera.layers.enable( 1 ); // 左眼只看 Layer 1
+                            camera.layers.disable( 2 );
+                            leftMesh.position.x = -ipd / 2;
+                        } else if ( view.eye === "right" )
+                        {
+                            camera.layers.enable( 2 ); // 右眼只看 Layer 2
+                            camera.layers.disable( 1 );
+                            rightMesh.position.x = ipd / 2;
+                        }
+                    }
+                }
             }
-          }
+
+            renderer.render( scene, camera );
         }
-      }
-
-      // --- 抓取逻辑 ---
-      if (grabbedObject) {
-        if (grabbed.size === 1) {
-          // 单手拖动
-          const controller = Array.from(grabbed)[0];
-          grabbedObject.position.setFromMatrixPosition(controller.matrixWorld);
-          grabbedObject.position.z -= 2; // 保持前方一点
-        } else if (grabbed.size === 2) {
-          // 双手缩放
-          const p1 = new THREE.Vector3().setFromMatrixPosition(controller1.matrixWorld);
-          const p2 = new THREE.Vector3().setFromMatrixPosition(controller2.matrixWorld);
-          const currentDistance = p1.distanceTo(p2);
-          const scale = initialScale * (currentDistance / initialDistance);
-          grabbedObject.scale.set(scale, scale, scale);
-
-          // 旋转（双手连线朝向）
-          const mid = new THREE.Vector3().addVectors(p1, p2).multiplyScalar(0.5);
-          grabbedObject.position.copy(mid);
-        }
-      }
-
-      renderer.render(scene, camera);
-    }
-  </script>
+    </script>
 </body>
+
 </html>
