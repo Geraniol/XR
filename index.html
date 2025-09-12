@@ -33,10 +33,15 @@
     let leftMesh, rightMesh;
     let ipd = 0.06;
 
-    let controller1, controllerGrip1;
+    // 控制器
+    let controller1, controllerGrip1, controller2, controllerGrip2;
     let raycaster, tempMatrix = new THREE.Matrix4();
-    let intersected = null;
-    let isDragging = false;
+
+    // 抓取状态
+    let grabbed = new Set();   // 哪些控制器正在抓取
+    let grabbedObject = null;  // 被抓取的对象（图片）
+    let initialDistance = 0;
+    let initialScale = 1;
 
     init();
     animate();
@@ -48,8 +53,8 @@
       renderer = new THREE.WebGLRenderer({ antialias: true });
       renderer.setSize(window.innerWidth, window.innerHeight);
       renderer.xr.enabled = true;
-      document.body.appendChild(renderer.domElement);
       document.body.appendChild(VRButton.createButton(renderer));
+      document.body.appendChild(renderer.domElement);
 
       const loader = new THREE.TextureLoader();
       const leftTex = loader.load("./left.jpg");
@@ -64,26 +69,34 @@
       leftMesh.position.z = -2;
       rightMesh.position.z = -2;
 
-      // 设置 layer：左图给 Layer1，右图给 Layer2
+      // 设置 layer
       leftMesh.layers.set(1);
       rightMesh.layers.set(2);
 
       scene.add(leftMesh);
       scene.add(rightMesh);
 
-      // --- 手柄控制 ---
+      // --- 控制器 ---
       raycaster = new THREE.Raycaster();
+      const controllerModelFactory = new XRControllerModelFactory();
 
       controller1 = renderer.xr.getController(0);
+      controller2 = renderer.xr.getController(1);
       scene.add(controller1);
+      scene.add(controller2);
 
       controllerGrip1 = renderer.xr.getControllerGrip(0);
-      const controllerModelFactory = new XRControllerModelFactory();
       controllerGrip1.add(controllerModelFactory.createControllerModel(controllerGrip1));
       scene.add(controllerGrip1);
 
-      controller1.addEventListener('selectstart', onSelectStart);
-      controller1.addEventListener('selectend', onSelectEnd);
+      controllerGrip2 = renderer.xr.getControllerGrip(1);
+      controllerGrip2.add(controllerModelFactory.createControllerModel(controllerGrip2));
+      scene.add(controllerGrip2);
+
+      controller1.addEventListener('selectstart', (e) => onSelectStart(e, controller1));
+      controller1.addEventListener('selectend',   (e) => onSelectEnd(e, controller1));
+      controller2.addEventListener('selectstart', (e) => onSelectStart(e, controller2));
+      controller2.addEventListener('selectend',   (e) => onSelectEnd(e, controller2));
 
       document.getElementById("ipd").addEventListener("input", (e) => {
         ipd = parseFloat(e.target.value);
@@ -92,22 +105,35 @@
       window.addEventListener('resize', onWindowResize);
     }
 
-    function onSelectStart() {
-      // 手柄射线检测
-      tempMatrix.identity().extractRotation(controller1.matrixWorld);
-      raycaster.ray.origin.setFromMatrixPosition(controller1.matrixWorld);
+    function intersectObject(controller) {
+      tempMatrix.identity().extractRotation(controller.matrixWorld);
+      raycaster.ray.origin.setFromMatrixPosition(controller.matrixWorld);
       raycaster.ray.direction.set(0, 0, -1).applyMatrix4(tempMatrix);
 
-      const intersects = raycaster.intersectObjects([leftMesh, rightMesh]);
+      return raycaster.intersectObjects([leftMesh, rightMesh]);
+    }
+
+    function onSelectStart(event, controller) {
+      const intersects = intersectObject(controller);
       if (intersects.length > 0) {
-        intersected = intersects[0].object;
-        isDragging = true;
+        grabbed.add(controller);
+        grabbedObject = intersects[0].object;
+
+        if (grabbed.size === 2) {
+          // 双手开始抓取，记录初始状态
+          const p1 = new THREE.Vector3().setFromMatrixPosition(controller1.matrixWorld);
+          const p2 = new THREE.Vector3().setFromMatrixPosition(controller2.matrixWorld);
+          initialDistance = p1.distanceTo(p2);
+          initialScale = grabbedObject.scale.x;
+        }
       }
     }
 
-    function onSelectEnd() {
-      isDragging = false;
-      intersected = null;
+    function onSelectEnd(event, controller) {
+      grabbed.delete(controller);
+      if (grabbed.size === 0) {
+        grabbedObject = null;
+      }
     }
 
     function onWindowResize() {
@@ -138,10 +164,25 @@
         }
       }
 
-      // 拖拽逻辑：让图片跟随手柄
-      if (isDragging && intersected) {
-        intersected.position.setFromMatrixPosition(controller1.matrixWorld);
-        intersected.position.z -= 2; // 保持在视野前方一点
+      // --- 抓取逻辑 ---
+      if (grabbedObject) {
+        if (grabbed.size === 1) {
+          // 单手拖动
+          const controller = Array.from(grabbed)[0];
+          grabbedObject.position.setFromMatrixPosition(controller.matrixWorld);
+          grabbedObject.position.z -= 2; // 保持前方一点
+        } else if (grabbed.size === 2) {
+          // 双手缩放
+          const p1 = new THREE.Vector3().setFromMatrixPosition(controller1.matrixWorld);
+          const p2 = new THREE.Vector3().setFromMatrixPosition(controller2.matrixWorld);
+          const currentDistance = p1.distanceTo(p2);
+          const scale = initialScale * (currentDistance / initialDistance);
+          grabbedObject.scale.set(scale, scale, scale);
+
+          // 旋转（双手连线朝向）
+          const mid = new THREE.Vector3().addVectors(p1, p2).multiplyScalar(0.5);
+          grabbedObject.position.copy(mid);
+        }
       }
 
       renderer.render(scene, camera);
