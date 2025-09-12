@@ -1,0 +1,132 @@
+<!DOCTYPE html>
+<html lang="zh">
+
+<head>
+    <meta charset="UTF-8">
+    <title>Stereo Image Viewer</title>
+    <style>
+        body {
+            margin: 0;
+            overflow: hidden;
+            background: black;
+        }
+
+        #ui {
+            position: absolute;
+            bottom: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: rgba(0, 0, 0, 0.6);
+            padding: 10px;
+            border-radius: 8px;
+            color: white;
+            font-family: sans-serif;
+        }
+    </style>
+</head>
+
+<body>
+    <div id="ui">
+        瞳距调整：
+        <input id="ipd" type="range" min="0.0" max="0.2" step="0.001" value="0.06">
+    </div>
+
+    <script type="module">
+        import * as THREE from '/src/Three.js';
+        import { VRButton } from '/src/webxr/VRButton.js';
+
+        let scene, camera, renderer;
+        let leftMesh, rightMesh;
+        let ipd = 0.06; // 初始瞳距（单位：米）
+
+        init();
+        animate();
+
+        function init ()
+        {
+            // 场景和相机
+            scene = new THREE.Scene();
+            camera = new THREE.PerspectiveCamera( 70, window.innerWidth / window.innerHeight, 0.1, 100 );
+
+            // 渲染器
+            renderer = new THREE.WebGLRenderer( { antialias: true } );
+            renderer.setSize( window.innerWidth, window.innerHeight );
+            renderer.xr.enabled = true;
+            document.body.appendChild( renderer.domElement );
+            document.body.appendChild( VRButton.createButton( renderer ) );
+
+            // 纹理加载器
+            const loader = new THREE.TextureLoader();
+
+            const leftTex = loader.load( "left.jpg" );
+            const rightTex = loader.load( "right.jpg" );
+
+            // 左右眼平面
+            // const geometry = new THREE.PlaneGeometry( 1.6, 0.9 ); // 16:9 比例
+            const geometry = new THREE.PlaneGeometry( 1, 1 );
+            const leftMat = new THREE.MeshBasicMaterial( { map: leftTex } );
+            const rightMat = new THREE.MeshBasicMaterial( { map: rightTex } );
+
+            leftMesh = new THREE.Mesh( geometry, leftMat );
+            rightMesh = new THREE.Mesh( geometry, rightMat );
+
+            // 放在相机前方
+            leftMesh.position.z = -2;
+            rightMesh.position.z = -2;
+
+            scene.add( leftMesh );
+            scene.add( rightMesh );
+
+            // 监听滑块变化
+            document.getElementById( "ipd" ).addEventListener( "input", ( e ) =>
+            {
+                ipd = parseFloat( e.target.value );
+            } );
+
+            window.addEventListener( "resize", onWindowResize );
+        }
+
+        function onWindowResize ()
+        {
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize( window.innerWidth, window.innerHeight );
+        }
+
+        function animate ()
+        {
+            renderer.setAnimationLoop( render );
+        }
+
+        function render ( time, frame )
+        {
+            if ( frame )
+            {
+                const session = renderer.xr.getSession();
+                const pose = frame.getViewerPose( renderer.xr.getReferenceSpace() );
+
+                if ( pose )
+                {
+                    for ( const view of pose.views )
+                    {
+                        if ( view.eye === "left" )
+                        {
+                            leftMesh.visible = true;
+                            rightMesh.visible = false;
+                            leftMesh.position.x = -ipd / 2;  // 左眼偏移
+                        } else if ( view.eye === "right" )
+                        {
+                            leftMesh.visible = false;
+                            rightMesh.visible = true;
+                            rightMesh.position.x = ipd / 2;  // 右眼偏移
+                        }
+                    }
+                }
+            }
+
+            renderer.render( scene, camera );
+        }
+    </script>
+</body>
+
+</html>
