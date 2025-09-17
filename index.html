@@ -103,14 +103,6 @@
 
             window.addEventListener( "resize", onWindowResize );
 
-            // 滾輪、手柄上下控制距離
-            renderer.domElement.addEventListener( 'wheel', ( e ) =>
-            {
-                e.preventDefault();
-                const delta = e.deltaY * 0.01;
-                leftMesh.position.z += delta;
-                rightMesh.position.z += delta;
-            } );
         }
 
         function onWindowResize ()
